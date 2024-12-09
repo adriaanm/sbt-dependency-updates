@@ -47,15 +47,19 @@ class VersionServiceImpl(
     sbtBinaryVersion: String,
     sbtScalaBinaryVersion: String
   ): Future[ModuleStatus] =
-    check(module, Option(sbtBinaryVersion -> sbtScalaBinaryVersion))
+    check(module, Some(sbtBinaryVersion), Some(sbtScalaBinaryVersion))
 
-  private[this] def check(module: ModuleID, sbtSettings: Option[(String, String)] = None): Future[ModuleStatus] = {
+  private[this] def check(
+    module: ModuleID,
+    sbtBinaryVersion: Option[String] = None,
+    sbtScalaBinaryVersion: Option[String] = None
+  ): Future[ModuleStatus] = {
     val mv = new DefaultArtifactVersion(module.revision)
     groups.foldLeft(Future.successful(Seq.empty[String] -> Option.empty[ModuleStatus])) { (future, group) =>
       future.flatMap {
         case (_, opt @ Some(_)) => Future.successful(Seq.empty[String] -> opt)
         case (errors, _) =>
-          group.getVersions(module, sbtSettings).map {
+          group.getVersions(module, sbtBinaryVersion, sbtScalaBinaryVersion).map {
             case Nil => errors -> None
             case versions =>
               val (max: ArtifactVersion, status: Status.Value) = getModuleStatus(mv, versions)

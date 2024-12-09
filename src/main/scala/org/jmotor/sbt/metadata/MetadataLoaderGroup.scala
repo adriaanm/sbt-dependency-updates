@@ -10,6 +10,7 @@ import sbt.librarymanagement.{Binary, Constant, Disabled, Full, ModuleID, Patch}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Failure, Success}
+import org.jmotor.sbt.artifact.metadata.loader.MavenRepoMetadataLoader
 
 /**
  * Component: Description: Date: 2018/3/1
@@ -19,39 +20,38 @@ import scala.util.{Failure, Success}
  */
 class MetadataLoaderGroup(scalaVersion: String, scalaBinaryVersion: String, loaders: Seq[MetadataLoader]) {
 
-  def getVersions(module: ModuleID, sbtSettings: Option[(String, String)]): Future[Seq[ArtifactVersion]] =
-    if (loaders.lengthCompare(1) > 0) {
-      firstCompletedOf(loaders.map { loader =>
-        val (artifactId, attrs) = getArtifactIdAndAttrs(loader, module, sbtSettings)
-        loader.getVersions(module.organization, artifactId, attrs)
-      })
-    } else {
-      loaders.headOption.fold(Future.successful(Seq.empty[ArtifactVersion])) { loader =>
-        val (artifactId, attrs) = getArtifactIdAndAttrs(loader, module, sbtSettings)
-        loader.getVersions(module.organization, artifactId, attrs)
-      }
-    }
+  def getVersions(
+    module: ModuleID,
+    sbtBinaryVersion: Option[String] = None,
+    sbtScalaBinaryVersion: Option[String] = None
+  ): Future[Seq[ArtifactVersion]] =
+    firstCompletedOf(loaders.map { loader =>
+      val (artifactId, attrs) = getArtifactIdAndAttrs(loader, module, sbtBinaryVersion, sbtScalaBinaryVersion)
+      loader.getVersions(module.organization, artifactId, attrs)
+    })
 
   private[metadata] def firstCompletedOf(
-    futures: TraversableOnce[Future[Seq[ArtifactVersion]]]
-  )(implicit executor: ExecutionContext): Future[Seq[ArtifactVersion]] = {
-    val p           = Promise[Seq[ArtifactVersion]]()
-    val multiFuture = new MultiFuture[Seq[ArtifactVersion]](p, futures.size, Seq.empty)
-    futures foreach { future =>
-      future.onComplete {
-        case Success(r) if r.nonEmpty              => p trySuccess r
-        case Success(_)                            => multiFuture.tryComplete()
-        case Failure(_: ArtifactNotFoundException) => multiFuture.tryComplete()
-        case Failure(t)                            => multiFuture.tryComplete(t)
-      }(scala.concurrent.ExecutionContext.Implicits.global)
-    }
-    p.future
-  }
+    futures: Seq[Future[Seq[ArtifactVersion]]]
+  )(implicit executor: ExecutionContext): Future[Seq[ArtifactVersion]] =
+    if (futures.lengthCompare(1) > 0) {
+      val p           = Promise[Seq[ArtifactVersion]]()
+      val multiFuture = new MultiFuture[Seq[ArtifactVersion]](p, futures.size, Seq.empty)
+      futures foreach { future =>
+        future.onComplete {
+          case Success(r) if r.nonEmpty              => p trySuccess r
+          case Success(_)                            => multiFuture.tryComplete()
+          case Failure(_: ArtifactNotFoundException) => multiFuture.tryComplete()
+          case Failure(t)                            => multiFuture.tryComplete(t)
+        }(scala.concurrent.ExecutionContext.Implicits.global)
+      }
+      p.future
+    } else futures.headOption.getOrElse(Future.successful(Seq.empty[ArtifactVersion]))
 
   private[metadata] def getArtifactIdAndAttrs(
     loader: MetadataLoader,
     module: ModuleID,
-    sbtSettings: Option[(String, String)]
+    sbtBinaryVersion: Option[String] = None,
+    sbtScalaBinaryVersion: Option[String] = None
   ): (String, Map[String, String]) = {
     val remapVersion = module.crossVersion match {
       case _: Disabled        => None
@@ -62,11 +62,15 @@ class MetadataLoaderGroup(scalaVersion: String, scalaBinaryVersion: String, load
       case _                  => None
     }
     val name = remapVersion.map(v => s"${module.name}_$v").getOrElse(module.name)
-    loader match {
-      case _: IvyPatternsMetadataLoader if sbtSettings.isDefined =>
-        val settings = sbtSettings.get
-        name -> Map("sbtVersion" -> settings._1, "scalaVersion" -> settings._2)
-      case _ => name -> Map.empty
+    (sbtBinaryVersion, sbtScalaBinaryVersion) match {
+      case (Some(sbtVersion), Some(scalaVersion)) =>
+        loader match {
+          case _: IvyPatternsMetadataLoader => (name, Map("sbtVersion" -> sbtVersion, "scalaVersion" -> scalaVersion))
+          case _: MavenRepoMetadataLoader   => (s"${name}_${scalaVersion}_${sbtVersion}", Map.empty)
+          case _                            => (name, Map.empty)
+        }
+
+      case _ => (name, Map.empty)
     }
   }
 
