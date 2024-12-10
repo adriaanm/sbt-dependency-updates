@@ -23,11 +23,18 @@ class MetadataLoaderGroup(scalaVersion: String, scalaBinaryVersion: String, load
   def getVersions(
     module: ModuleID,
     sbtBinaryVersion: Option[String] = None,
-    sbtScalaBinaryVersion: Option[String] = None
+    sbtScalaBinaryVersion: Option[String] = None,
+    newOrgIds: Map[String, String] = Map.empty
   ): Future[Seq[ArtifactVersion]] =
     firstCompletedOf(loaders.map { loader =>
       val (artifactId, attrs) = getArtifactIdAndAttrs(loader, module, sbtBinaryVersion, sbtScalaBinaryVersion)
-      loader.getVersions(module.organization, artifactId, attrs)
+      loader
+        .getVersions(module.organization, artifactId, attrs)
+        .flatMap(versions =>
+          newOrgIds.get(module.organization).fold(Future.successful(versions)) { newOrgId =>
+            loader.getVersions(newOrgId, artifactId, attrs).map(_ ++ versions)
+          }
+        )
     })
 
   private[metadata] def firstCompletedOf(

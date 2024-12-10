@@ -35,7 +35,8 @@ class VersionServiceImpl(
   scalaVersion: String,
   scalaBinaryVersion: String,
   resolvers: Seq[Resolver],
-  credentials: Seq[Credentials]
+  credentials: Seq[Credentials],
+  newOrgIds: Map[String, String]
 ) extends VersionService {
 
   private[this] lazy val groups = getLoaderGroups(resolvers, credentials)
@@ -59,7 +60,7 @@ class VersionServiceImpl(
       future.flatMap {
         case (_, opt @ Some(_)) => Future.successful(Seq.empty[String] -> opt)
         case (errors, _) =>
-          group.getVersions(module, sbtBinaryVersion, sbtScalaBinaryVersion).map {
+          group.getVersions(module, sbtBinaryVersion, sbtScalaBinaryVersion, newOrgIds).map {
             case Nil => errors -> None
             case versions =>
               val (max: ArtifactVersion, status: Status.Value) = getModuleStatus(mv, versions)

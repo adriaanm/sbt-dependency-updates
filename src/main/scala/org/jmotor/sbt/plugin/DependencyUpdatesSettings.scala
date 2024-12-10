@@ -23,6 +23,7 @@ object DependencyUpdatesSettings {
   def updatesSettings: Seq[Setting[_]] = Seq(
     dependencyUpgradeComponentSorter := ComponentSorter.ByAlphabetically,
     dependencyUpgradeModuleNames     := Map.empty[String, String],
+    dependencyUpdatesNewOrgIds       := Map.empty[String, String],
     dependencyUpdates := {
       val reporter = Reporter(
         VersionService(
@@ -30,7 +31,8 @@ object DependencyUpdatesSettings {
           scalaVersion.value,
           scalaBinaryVersion.value,
           fullResolvers.value,
-          allCredentials.value ++ credentials.value
+          allCredentials.value ++ credentials.value,
+          dependencyUpdatesNewOrgIds.value
         )
       )
       val futureDependencyUpdates   = reporter.dependencyUpdates(libraryDependencies.value)
@@ -58,7 +60,8 @@ object DependencyUpdatesSettings {
           scalaVersion.value,
           scalaBinaryVersion.value,
           fullResolvers.value,
-          allCredentials.value ++ credentials.value
+          allCredentials.value ++ credentials.value,
+          dependencyUpdatesNewOrgIds.value
         )
       )
       val futureDependencyUpdates = reporter.dependencyUpdates(libraryDependencies.value)

@@ -21,6 +21,11 @@ trait DependencyUpdatesKeys {
   lazy val dependencyUpgradeModuleNames: SettingKey[Map[String, String]] =
     settingKey[Map[String, String]]("Module name mappings")
 
+  lazy val dependencyUpdatesNewOrgIds: SettingKey[Map[String, String]] =
+    settingKey[Map[String, String]](
+      "Map from old to new organization id, simply collects versions of artifacts from both orgs, does not rewrite the actual dependency"
+    )
+
 }
 
 object DependencyUpdatesKeys extends DependencyUpdatesKeys

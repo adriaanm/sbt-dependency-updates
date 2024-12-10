@@ -106,5 +106,13 @@ E.g. in `build.sbt` you can change configuration settings like this:
   dependencyUpgradeComponentSorter := ComponentSorter.ByAlphabetically
 ```
 
+- `dependencyUpdatesNewOrgIds` lets you include artifacts from a new organization ID when considering the versions of an artifact.
+  It does not rewrite the actual dependency, so you'll have to do that yourself.
+
+```scala
+  // when getting latest versions for (e.g.) `"org.old" % "foo"`, consider versions for both `"org.old" % "foo"` and `"org.shiny" % "foo"`
+  dependencyUpdatesNewOrgIds += ("org.old" -> "org.shiny") 
+```
+
 ## Coming soon
 - CI Repoter: Design
