@@ -2,15 +2,13 @@ package org.jmotor.sbt.parser
 
 import scala.util.matching.Regex
 
-/**
- * Date: 2018/3/1
- *
- * @author
- *   AI
- */
+/** Date: 2018/3/1
+  *
+  * @author
+  *   AI
+  */
 object VersionParser {
-
-  lazy val VersionRegex: Regex        = """val *(\w+) *= *"(.*)"""".r
+  lazy val VersionRegex: Regex = """val *(\w+) *= *"(.*)"(.*)""".r
   lazy val VersionsObjectRegex: Regex = """[\t ]*object ?Versions ?\{([^{^}]*)\}""".r
 
   def parseVersionLines(text: String): Array[String] =

@@ -1,8 +1,8 @@
 package org.jmotor.sbt
 
-import java.nio.file.{Files, Path, Paths, StandardOpenOption}
+import java.nio.file.{ Files, Path, Paths, StandardOpenOption }
 import com.google.common.base.CaseFormat
-import org.jmotor.sbt.dto.{Component, ModuleStatus, Status}
+import org.jmotor.sbt.dto.{ Component, ModuleStatus, Status }
 import org.jmotor.sbt.parser.PluginParser
 import org.jmotor.sbt.parser.VersionParser.*
 import org.jmotor.sbt.plugin.ComponentSorter
@@ -12,16 +12,15 @@ import sbt.ResolvedProject
 import scala.collection.JavaConverters.*
 import scala.collection.mutable.ListBuffer
 import scala.io.Codec
-import scala.util.{Failure, Success, Try}
+import scala.util.{ Failure, Success, Try }
 import org.scalafmt.interfaces.Scalafmt
 import sbt.librarymanagement.ModuleID
 
-/**
- * Component: Description: Date: 2018/2/28
- *
- * @author
- *   AI
- */
+/** Component: Description: Date: 2018/2/28
+  *
+  * @author
+  *   AI
+  */
 object Updates {
 
   def applyDependencyUpdates(
@@ -39,24 +38,28 @@ object Updates {
           name -> m.lastVersion
       }.toMap
       lazy val matchedNames = ListBuffer[String]()
-      val versions = parseVersionLines(text).collect { case v @ VersionRegex(name, version) =>
-        expiredModules.find(_._1.equalsIgnoreCase(name)) match {
-          case None => Component(name, version)
-          case Some(component) =>
-            matchedNames += component._1
-            Component(component._1, component._2)
-        }
+      val versions = parseVersionLines(text).collect { case v @ VersionRegex(name, version, rest) =>
+        if (rest.contains("pin")) {
+          matchedNames += name
+          Component(name, version, rest)
+        } else
+          expiredModules.find(_._1.equalsIgnoreCase(name)) match {
+            case None => Component(name, version, rest)
+            case Some(component) =>
+              matchedNames += component._1
+              Component(component._1, component._2, rest)
+          }
       }
 
       val appends = expiredModules.filterNot(v => matchedNames.contains(v._1)).map { v =>
-        Component(v._1, v._2)
+        Component(v._1, v._2, "")
       }
       val components     = sortComponents((versions ++ appends).toSet.toSeq, sorter)
-      val componentLines = components.map(c => s"""val ${c.name} = "${c.version}"""")
+      val componentLines = components.map(c => s"""val ${c.name} = "${c.version}"${c.rest}""")
       val newText =
         text.replaceFirst(VersionsObjectRegex.regex, s"object Versions {\n${componentLines.mkString("\n")}\n}")
       val scalafmt = Scalafmt.create(this.getClass.getClassLoader)
-      val result   = scalafmt.format(getScalafmtConfigPath(project), Paths.get("project", "Dependencies.scala"), newText)
+      val result = scalafmt.format(getScalafmtConfigPath(project), Paths.get("project", "Dependencies.scala"), newText)
       Files.write(path, result.getBytes(Codec.UTF8.charSet), StandardOpenOption.TRUNCATE_EXISTING)
       expiredModules.size
     }
