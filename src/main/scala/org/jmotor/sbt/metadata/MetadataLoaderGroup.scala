@@ -32,7 +32,10 @@ class MetadataLoaderGroup(scalaVersion: String, scalaBinaryVersion: String, load
         .getVersions(module.organization, artifactId, attrs)
         .flatMap(versions =>
           newOrgIds.get(module.organization).fold(Future.successful(versions)) { newOrgId =>
-            loader.getVersions(newOrgId, artifactId, attrs).map(_ ++ versions)
+            loader
+              .getVersions(newOrgId, artifactId, attrs)
+              .recover { case _ => Seq.empty[ArtifactVersion] }
+              .map(_ ++ versions)
           }
         )
     })
